@@ -338,6 +338,46 @@ export const checkFirmwareAuthenticity = createThunk(
     },
 );
 
+export const checkDeviceAuthenticity = createThunk(
+    `${FIRMWARE_MODULE_PREFIX}/checkDeviceAuthenticity`,
+    async (_, { dispatch, getState, extra }) => {
+        const {
+            selectors: { selectDevice },
+        } = extra;
+        const device = selectDevice(getState());
+        if (!device) {
+            throw new Error('device is not connected');
+        }
+        const result = await TrezorConnect.authenticateDevice({
+            device: {
+                path: device.path,
+            },
+        });
+        if (result.success) {
+            if (result.payload.valid) {
+                dispatch(
+                    notificationsActions.addToast({ type: 'firmware-check-authenticity-success' }),
+                );
+                // TODO: validate result.payload.caPubKey
+            } else {
+                dispatch(
+                    notificationsActions.addToast({
+                        type: 'error',
+                        error: `Device is not authentic: ${result.payload.error}`,
+                    }),
+                );
+            }
+        } else {
+            dispatch(
+                notificationsActions.addToast({
+                    type: 'error',
+                    error: `Unable to validate device: ${result.payload.error}`,
+                }),
+            );
+        }
+    },
+);
+
 export const rebootToBootloader = createThunk(
     `${FIRMWARE_MODULE_PREFIX}/rebootToBootloader`,
     async (_, { dispatch, getState, extra }) => {
