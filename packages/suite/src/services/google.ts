@@ -345,9 +345,23 @@ class Client {
      * implementation of https://developers.google.com/drive/api/v3/reference/files/update
      */
     static async update(params: UpdateParams, payload: string, id: string) {
-        params.body = Client.getWriteBody(params.body, payload);
+            params.body = Client.getWriteBody(params.body, payload);
         const response = await Client.call(
             `https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=multipart`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': `multipart/related; boundary="${BOUNDARY}"`,
+                },
+            },
+            params,
+        );
+        return response.json;
+    }
+    
+    static async updateMetadata(params: UpdateParams, id: string) {
+        const response = await Client.call(
+            `https://www.googleapis.com/drive/v3/files/${id}?uploadType=multipart`,
             {
                 method: 'PATCH',
                 headers: {
