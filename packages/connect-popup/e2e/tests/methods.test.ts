@@ -30,11 +30,11 @@ test.beforeAll(async () => {
     await TrezorUserEnvLink.connect();
 });
 
-test.afterEach(() => {
+test.afterEach(async () => {
     if (context) {
         // BrowserContext has to start fresh each test.
         // https://playwright.dev/docs/api/class-browsercontext#browser-context-close
-        context.close();
+        await context.close();
     }
 });
 
@@ -52,7 +52,7 @@ const getExtensionPage = async () => {
         'build',
     );
 
-    const userDataDir = '/tmp/test-user-data-dir';
+    const userDataDir = `${Math.floor(Math.random() * 10000)}/tmp/test-user-data-dir`;
     const browserContext = await chromium.launchPersistentContext(userDataDir, {
         // https://playwright.dev/docs/chrome-extensions#headless-mode
         // By default, Chrome's headless mode in Playwright does not support Chrome extensions.
@@ -65,6 +65,8 @@ const getExtensionPage = async () => {
             `--load-extension=${pathToExtension}`,
         ],
     });
+
+    await browserContext.clearCookies();
 
     const page = await browserContext.newPage();
 
