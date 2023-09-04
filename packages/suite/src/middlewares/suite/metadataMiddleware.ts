@@ -22,18 +22,18 @@ const metadata =
             // todo: what if I add a hidden wallet but don't run discovery?
             case '@common/wallet-core/discovery/complete': {
                 const { device } = api.getState().suite;
+                const nextState = api.dispatch(metadataActions.getLabelableEntitiesDescriptors());
 
                 if (api.getState().metadata.enabled && device?.state) {
-                    const nextState = api.dispatch(
-                        metadataActions.getLabelableEntitiesDescriptors(),
-                    );
                     if (prevState.join('') !== nextState.join('')) {
                         api.dispatch(metadataActions.init());
                     } else {
                         console.log('states are equal!');
                     }
-                    api.dispatch(metadataActions.setEntititesDescriptors(nextState));
                 }
+
+                api.dispatch(metadataActions.setEntititesDescriptors(nextState));
+
                 break;
             }
 
