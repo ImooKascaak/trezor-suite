@@ -349,7 +349,7 @@ export const startDiscoveryThunk = createThunk(
         }
 
         const { deviceState, authConfirm } = discovery;
-        const metadataEnabled = metadata.enabled && device.metadata.status === 'disabled';
+        const metadataEnabled = metadata.enabled && device.metadata[2]; // todo: can't import constant
 
         // start process
         if (
@@ -482,7 +482,7 @@ export const startDiscoveryThunk = createThunk(
                     }),
                 );
                 // try to generate device metadata master key
-                await dispatch(initMetadata(undefined));
+                await dispatch(initMetadata(false));
             }
             if (currentDiscovery.status === DiscoveryStatus.RUNNING) {
                 await dispatch(startDiscoveryThunk()); // try next index

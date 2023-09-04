@@ -333,6 +333,7 @@ export const saveMetadata = () => async (_dispatch: Dispatch, getState: GetState
             providers: metadata.providers,
             enabled: metadata.enabled,
             selectedProvider: metadata.selectedProvider,
+            cancelledForDevices: metadata.cancelledForDevices,
         },
         'state',
         true,

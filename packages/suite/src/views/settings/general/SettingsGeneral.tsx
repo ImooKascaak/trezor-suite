@@ -24,6 +24,7 @@ import { EarlyAccess } from './EarlyAccess';
 import { BitcoinAmountUnit } from './BitcoinAmountUnit';
 import { NETWORKS } from 'src/config/wallet';
 import { DesktopSuiteBanner } from './DesktopSuiteBanner';
+import { METADATA } from 'src/actions/suite/constants';
 
 export const SettingsGeneral = () => {
     const isPromoHidden = useSelector(state => state.suite.settings.isDesktopSuitePromoHidden);
@@ -41,8 +42,11 @@ export const SettingsGeneral = () => {
     );
 
     const isMetadataEnabled = metadata.enabled && !metadata.initiating;
+    // todo: use selector
     const isProviderConnected =
-        metadata.enabled && device?.metadata.status === 'enabled' && !!metadata.providers.length;
+        metadata.enabled &&
+        device?.metadata[METADATA.ENCRYPTION_VERSION] &&
+        !!metadata.providers.length;
 
     return (
         <SettingsLayout data-test="@settings/index">

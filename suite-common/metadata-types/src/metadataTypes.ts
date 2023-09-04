@@ -163,13 +163,7 @@ export interface WalletLabels {
 
 export type Labels = AccountLabels | WalletLabels;
 
-export type DeviceMetadata =
-    | {
-          status: 'disabled';
-      }
-    | ({
-          status: 'enabled';
-      } & DeviceEntityKeys);
+export type DeviceMetadata = DeviceEntityKeys;
 
 type Data = Record<
     LabelableEntityKeys['fileName'], // unique "id" for mapping with labelable entitties
@@ -222,6 +216,11 @@ export interface MetadataState {
      * this is used to track changes in labelable entities and trigger metadata init (and metadata migration) when needed.
      */
     entities?: string[];
+    /**
+     * user clicked cancel button on device when "Enable labeling" was shown.
+     * with advent of encryption version migration this does not have that much importance now but we still have to respect users choice
+     */
+    cancelledForDevices: { [deviceState: string]: boolean };
 }
 
 export type OAuthServerEnvironment = 'production' | 'staging' | 'localhost';

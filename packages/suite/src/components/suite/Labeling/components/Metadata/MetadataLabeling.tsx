@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 
-import { Button, Icon, Tooltip, useTheme } from '@trezor/components';
+import { Button, Icon, useTheme } from '@trezor/components';
 import { useDiscovery, useDispatch, useSelector } from 'src/hooks/suite';
 import { addMetadata, init, setEditing } from 'src/actions/suite/metadataActions';
 import { MetadataAddPayload } from 'src/types/suite/metadata';
@@ -11,6 +11,7 @@ import { withEditable } from './withEditable';
 import { withDropdown } from './withDropdown';
 import { selectIsLabelingAvailable } from 'src/reducers/suite/metadataReducer';
 import type { Timeout } from '@trezor/type-utils';
+import { METADATA } from 'src/actions/suite/constants';
 
 const LabelValue = styled.div`
     overflow: hidden;
@@ -228,10 +229,11 @@ export const MetadataLabeling = (props: Props) => {
 
     const isLabelingAvailable = useSelector(selectIsLabelingAvailable);
 
+    // todo: selector
     // labeling is possible (it is possible to make it available) when we may obtain keys from device. If enabled, we already have them
     // (and only need to connect provider), or if device is connected, we may initiate TrezorConnect.CipherKeyValue call and get them
     const labelingPossible =
-        !props.isDisabled && (device?.metadata.status === 'enabled' || device?.connected);
+        !props.isDisabled && (device?.metadata?.[METADATA.ENCRYPTION_VERSION] || device?.connected);
 
     // is this concrete instance being edited?
     const editActive = metadata.editing === props.payload.defaultValue;
@@ -244,7 +246,7 @@ export const MetadataLabeling = (props: Props) => {
             // is there something that needs to be initiated?
             !isLabelingAvailable
         ) {
-            dispatch(init());
+            dispatch(init(true));
         }
         dispatch(setEditing(props.payload.defaultValue));
     };

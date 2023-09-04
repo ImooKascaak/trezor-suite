@@ -20,7 +20,7 @@ export const Labeling = () => {
         if (metadata.enabled) {
             dispatch(metadataActions.disableMetadata());
         } else {
-            dispatch(metadataActions.init());
+            dispatch(metadataActions.init(true));
         }
 
         analytics.report({

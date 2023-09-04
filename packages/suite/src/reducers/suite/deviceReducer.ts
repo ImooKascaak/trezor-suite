@@ -68,7 +68,7 @@ const connectDevice = (draft: State, device: Device) => {
             available: false,
             useEmptyPassphrase: true,
             buttonRequests: [],
-            metadata: { status: 'disabled' },
+            metadata: {},
             ts: new Date().getTime(),
         });
         return;
@@ -102,7 +102,7 @@ const connectDevice = (draft: State, device: Device) => {
             ? deviceUtils.getNewInstanceNumber(draft, device) || 1
             : undefined,
         buttonRequests: [],
-        metadata: { status: 'disabled' },
+        metadata: {},
         ts: new Date().getTime(),
     };
 
@@ -317,7 +317,7 @@ const createInstance = (draft: State, device: TrezorDevice) => {
         authConfirm: false,
         ts: new Date().getTime(),
         buttonRequests: [],
-        metadata: { status: 'disabled' },
+        metadata: {},
     };
     draft.push(newDevice);
 };
@@ -362,7 +362,7 @@ const forget = (draft: State, device: TrezorDevice) => {
         draft[index].passphraseOnDevice = false;
         // set remember to false to make it disappear after device is disconnected
         draft[index].remember = false;
-        draft[index].metadata = { status: 'disabled' };
+        draft[index].metadata = {};
     } else {
         draft.splice(index, 1);
     }

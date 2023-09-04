@@ -21,6 +21,7 @@ export const initialState: MetadataState = {
         labels: '',
     },
     entities: [],
+    cancelledForDevices: {},
 };
 
 type MetadataRootState = {
@@ -75,6 +76,15 @@ const metadataReducer = (state = initialState, action: Action): MetadataState =>
             case METADATA.SET_ENTITIES_DESCRIPTORS:
                 draft.entities = action.payload;
                 break;
+            case METADATA.SET_CANCELLED_FOR_DEVICE:
+                if (action.payload.cancelled) {
+                    draft.cancelledForDevices[action.payload.deviceState] =
+                        action.payload.cancelled;
+                } else {
+                    delete draft.cancelledForDevices[action.payload.deviceState];
+                }
+                break;
+
             // no default
         }
     });
@@ -162,7 +172,7 @@ export const selectLabelingDataForWallet = (
 ) => {
     const provider = selectSelectedProviderForLabels(state);
     const device = state.devices.find(d => d.state === deviceState);
-    if (device?.metadata.status !== 'enabled') {
+    if (!device?.metadata[METADATA.ENCRYPTION_VERSION]) {
         return DEFAULT_WALLET_METADATA;
     }
     const metadataKeys = device?.metadata[METADATA.ENCRYPTION_VERSION];
@@ -175,11 +185,17 @@ export const selectLabelingDataForWallet = (
 
 // is everything ready (more or less) to add label?
 export const selectIsLabelingAvailable = (state: MetadataRootState) => {
-    const { enabled } = selectMetadata(state);
+    const { enabled, cancelledForDevices } = selectMetadata(state);
     const provider = selectSelectedProviderForLabels(state);
     const device = selectDevice(state);
 
-    return !!(enabled && device?.metadata?.status === 'enabled' && provider);
+    return !!(
+        device?.state &&
+        enabled &&
+        device.metadata?.[METADATA.ENCRYPTION_VERSION] &&
+        provider &&
+        !cancelledForDevices[device.state]
+    );
 };
 
 export default metadataReducer;

@@ -76,6 +76,10 @@ export type MetadataAction =
               clientId: string;
           };
       }
+    | {
+          type: typeof METADATA.SET_CANCELLED_FOR_DEVICE;
+          payload: { deviceState: string; cancelled: boolean };
+      }
     | ReturnType<typeof setAccountAdd>;
 
 // needs to be declared here in top level context because it's not recommended to keep classes instances in redux state (serialization)
@@ -358,7 +362,7 @@ export const fetchMetadata =
             throw new Error('no provider instance');
         }
 
-        if (entity.type === 'device' && entity.status !== 'enabled') {
+        if (entity.type === 'device' && !entity[METADATA.ENCRYPTION_VERSION]) {
             throw new Error('metadata not enabled'); // because of ts
         }
 
@@ -430,7 +434,7 @@ export const fetchAndSaveMetadata =
             }
 
             // device is disconnected or something is wrong with it
-            if (device?.metadata?.status !== 'enabled') {
+            if (!device?.metadata?.[METADATA.ENCRYPTION_VERSION]) {
                 if (fetchIntervals[deviceState]) {
                     clearInterval(fetchIntervals[deviceState]);
                     delete fetchIntervals[deviceState];
@@ -476,11 +480,7 @@ export const setAccountMetadataKey =
     (dispatch: Dispatch, getState: GetState) => {
         const { devices } = getState();
         const device = devices.find(d => d.state === account.deviceState);
-        if (
-            !device ||
-            device.metadata.status !== 'enabled' ||
-            !device.metadata[METADATA.ENCRYPTION_VERSION]?.key
-        ) {
+        if (!device?.metadata[METADATA.ENCRYPTION_VERSION]?.key) {
             return account;
         }
 
@@ -592,13 +592,11 @@ export const addDeviceMetadata =
         const device = getState().devices.find(d => d.state === payload.deviceState);
         const provider = selectSelectedProviderForLabels(getState());
 
-        if (!device || device.metadata.status !== 'enabled') return Promise.resolve(false);
-
         if (!provider) return Promise.resolve(false);
 
-        const { fileName, aesKey } = device.metadata[METADATA.ENCRYPTION_VERSION] || {};
+        const { fileName, aesKey } = device?.metadata[METADATA.ENCRYPTION_VERSION] || {};
         if (!fileName || !aesKey) {
-            console.error('fileName or aesKey is missing for device', device.state);
+            console.error('fileName or aesKey is missing for device', device?.state);
             return Promise.resolve(false);
         }
 
@@ -820,7 +818,6 @@ export const setDeviceMetadataKey =
                     deviceState: device.state,
                     metadata: {
                         ...device.metadata,
-                        status: 'enabled',
                         [encryptionVersion]: {
                             fileName,
                             aesKey,
@@ -829,33 +826,26 @@ export const setDeviceMetadataKey =
                     },
                 },
             });
-        } else {
-            // TODO: After metadata migration is implemented, I am not sure that 'cancelled' state makes sense
-            // anymore. With version 2 encryption user does not even have the option to cancel metadata on device
-            // user only has option to cancel labeling during migration. How should we handle this?
             dispatch({
-                type: METADATA.SET_DEVICE_METADATA,
+                type: METADATA.SET_CANCELLED_FOR_DEVICE,
                 payload: {
                     deviceState: device.state,
-                    metadata: {
-                        status: 'cancelled',
-                    },
+                    cancelled: false,
                 },
             });
-            // TODO: THIS SHOULD BE CHANGED I BELIEVE
-
-            // in effort to resolve https://github.com/trezor/trezor-suite/issues/2315
-            // also turn of global metadata.enabled setting
-            // pros:
-            // - user without saved device is not bothered with labeling when reloading page
-            // cons:
-            // - it makes concept device.metadata.status "cancelled" useless
-            // - new device will not be prompted with metadata when connected so even when there is
-            //   existing metadata for this device, user will not see it until he clicks "add label" button
+        } else if (
+            result.payload.error === 'cancelled' ||
+            result.payload.code === 'Method_Cancel'
+        ) {
             dispatch({
-                type: METADATA.DISABLE,
+                type: METADATA.SET_CANCELLED_FOR_DEVICE,
+                payload: {
+                    deviceState: device.state,
+                    cancelled: true,
+                },
             });
         }
+        // toast dispatched
     };
 
 export const addMetadata = (payload: MetadataAddPayload) => (dispatch: Dispatch) => {
@@ -874,33 +864,38 @@ export const addMetadata = (payload: MetadataAddPayload) => (dispatch: Dispatch)
  * are skipped and user will be asked again either after authorization process or when user
  * tries to add new label.
  */
-export const init = () => async (dispatch: Dispatch, getState: GetState) => {
+export const init = (force?: boolean) => async (dispatch: Dispatch, getState: GetState) => {
     const { device } = getState().suite;
+
+    if (!device?.state) {
+        console.error('trying to init metadata for device without state');
+        return false;
+    }
+
+    // user clicked "cancel" on device during "Enable labeling" dialogue
+    // suite detected a reason to init metadata (chagne in labelable entities set)
+    // but it still respects users choice not to work with metadata for this device
+    if (!force && getState().metadata.cancelledForDevices[device.state]) {
+        return false;
+    }
 
     // 1. set metadata enabled globally
     if (!getState().metadata.enabled) {
         dispatch(enableMetadata());
     }
 
-    if (!device?.state) {
-        return false;
-    }
-
     dispatch({ type: METADATA.SET_INITIATING, payload: true });
 
     let deviceMetadata: DeviceMetadata | undefined = device.metadata;
     // 2. set device metadata key (master key).
-    if (deviceMetadata?.status !== 'enabled') {
+    if (!deviceMetadata[METADATA.ENCRYPTION_VERSION]) {
         await dispatch(setDeviceMetadataKey(METADATA.ENCRYPTION_VERSION));
     }
 
     // there was an async action which might have failed (user disconnected device).
     // we don't have keys, we can'd do any labeling
     deviceMetadata = getState().suite.device?.metadata;
-    if (
-        deviceMetadata?.status === 'disabled' ||
-        !deviceMetadata?.[METADATA.ENCRYPTION_VERSION]?.key
-    ) {
+    if (!deviceMetadata?.[METADATA.ENCRYPTION_VERSION]?.key) {
         dispatch({ type: METADATA.SET_INITIATING, payload: false });
         dispatch({ type: METADATA.SET_EDITING, payload: undefined });
 
@@ -1043,7 +1038,7 @@ const createMigrationPromise =
         // eslint-disable-next-line no-async-promise-executor
         new Promise(async resolve => {
             const { device } = getState().suite;
-            if (!device?.state || device.metadata.status !== 'enabled') {
+            if (!device?.state || !device.metadata[METADATA.ENCRYPTION_VERSION]) {
                 console.error('metadata migration: device unexpected state'); // or throw, or error? i never know
                 return;
             }
@@ -1059,11 +1054,6 @@ const createMigrationPromise =
                             provider: getState().metadata.providers[0],
                         }),
                     ));
-
-                if (entity.type === 'device' && entity.status !== 'enabled') {
-                    console.error('meetadata migration: unexpected entity');
-                    return; // ts. should not happen
-                }
 
                 const nextKeys = entity[METADATA.ENCRYPTION_VERSION];
 
@@ -1150,7 +1140,7 @@ const handleEncryptionVersionMigration =
 
         // 2. in general, metadata related actions are per device as everything is encrypted by device.metadata[version].key
         let { device } = getState().suite;
-        if (!device?.state || device.metadata.status !== 'enabled') {
+        if (!device?.state) {
             return { success: false, error: 'metadata migration: device unexpected state' };
         }
 
@@ -1184,8 +1174,6 @@ const handleEncryptionVersionMigration =
         // 5. there are old files, but also all labelable entities currently known to suite have some record in currentEncryptionFiles.
         //    this means that they have already been migrated or dummy file was created
         const everyEntityHasNewFile = dispatch(getLabelableEntities(device.state)).every(entity => {
-            if (entity.type === 'device' && entity.status === 'disabled') return; // ts.
-
             const nextKeys = entity[METADATA.ENCRYPTION_VERSION];
 
             if (!nextKeys) {
@@ -1205,10 +1193,7 @@ const handleEncryptionVersionMigration =
             await dispatch(setDeviceMetadataKey(prevEncryptionVersion));
         }
         device = getState().suite.device;
-        if (
-            device?.metadata.status !== 'enabled' ||
-            !device?.metadata[prevEncryptionVersion]?.key
-        ) {
+        if (!device?.metadata[prevEncryptionVersion]?.key) {
             return { success: false, error: 'metadata migration: cancelled' };
         }
 
@@ -1229,8 +1214,6 @@ const handleEncryptionVersionMigration =
         const entitiesToMigrate: LabelableEntity[] = [];
         const entititiesToCreateDummies: LabelableEntity[] = [];
         allEntities.forEach(entity => {
-            if (entity.type === 'device' && entity.status === 'disabled') return; // ts.
-
             const prevKeys = entity[prevEncryptionVersion];
 
             if (!prevKeys) {

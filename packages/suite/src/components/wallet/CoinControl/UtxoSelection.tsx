@@ -19,6 +19,7 @@ import { useSendFormContext } from 'src/hooks/wallet';
 import { useCoinjoinUnavailableUtxos } from 'src/hooks/wallet/form/useCoinjoinUnavailableUtxos';
 import { WalletAccountTransaction } from 'src/types/wallet';
 import { selectLabelingDataForSelectedAccount } from 'src/reducers/suite/metadataReducer';
+import { METADATA } from 'src/actions/suite/constants';
 
 const VisibleOnHover = styled.div<{ alwaysVisible?: boolean }>`
     display: ${({ alwaysVisible }) => (alwaysVisible ? 'contents' : 'none')};
@@ -165,7 +166,9 @@ export const UtxoSelection = ({ transaction, utxo }: UtxoSelectionProps) => {
     const isPendingTransaction = utxo.confirmations === 0;
     const isChangeAddress = utxo.path.split('/').at(-2) === '1'; // change address always has a 1 on the penultimate level of the derivation path
     const outputLabel = outputLabels?.[utxo.txid]?.[utxo.vout];
-    const isLabelingPossible = device?.metadata.status === 'enabled' || device?.connected;
+
+    // todo: use selector
+    const isLabelingPossible = device?.metadata?.[METADATA.ENCRYPTION_VERSION] || device?.connected;
     const anonymity = account.addresses?.anonymitySet?.[utxo.address];
 
     const isChecked = isCoinControlEnabled
