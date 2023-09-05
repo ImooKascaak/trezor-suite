@@ -94,7 +94,7 @@ const MenuItemContainer = styled.li<MenuItemsProps>`
 
     :hover {
         background: ${({ theme, noHoverEffect }) =>
-            !noHoverEffect && theme.backgroundSurfaceElevation2};
+            !noHoverEffect && theme.backgroundSurfaceElevation0};
     }
 
     ${({ separatorBefore, theme }) =>
