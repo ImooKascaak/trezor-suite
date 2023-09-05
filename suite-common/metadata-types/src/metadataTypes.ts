@@ -217,10 +217,14 @@ export interface MetadataState {
      */
     entities?: string[];
     /**
-     * user clicked cancel button on device when "Enable labeling" was shown.
-     * with advent of encryption version migration this does not have that much importance now but we still have to respect users choice
+     * migration failed, typical reasons:
+     * - user clicked cancel button on device when "Enable labeling" was shown.
+     * - device disconnected
+     *
+     * we need to disable editing labels in this state otherwiser user might add a label which would cause next attempt to migrate data not to find
+     * previously saved labels for that labelable entity.
      */
-    cancelledForDevices: { [deviceState: string]: boolean };
+    failedMigration: { [deviceState: string]: boolean };
 }
 
 export type OAuthServerEnvironment = 'production' | 'staging' | 'localhost';

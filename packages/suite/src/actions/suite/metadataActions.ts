@@ -77,8 +77,8 @@ export type MetadataAction =
           };
       }
     | {
-          type: typeof METADATA.SET_CANCELLED_FOR_DEVICE;
-          payload: { deviceState: string; cancelled: boolean };
+          type: typeof METADATA.SET_FAILED_MIGRATION;
+          payload: { deviceState: string; failed: boolean };
       }
     | ReturnType<typeof setAccountAdd>;
 
@@ -755,6 +755,7 @@ const encryptAndSaveMetadata =
 
             const result = await providerInstance.setFileContent(fileName, encrypted);
             if (!result.success) {
+                // todo: this must not be here, but somewhere where batch of encrypt and save is scheduled, otherwise we get dozens of toasts
                 dispatch(
                     handleProviderError({
                         error: result,
@@ -826,22 +827,24 @@ export const setDeviceMetadataKey =
                     },
                 },
             });
+
+            if (getState().metadata.failedMigration[device.state]) {
+                // remove error note about failed migration potentially set in a previous run
+                dispatch({
+                    type: METADATA.SET_FAILED_MIGRATION,
+                    payload: {
+                        deviceState: device.state,
+                        failed: false,
+                    },
+                });
+            }
+        } else {
+            // regardless of error type (cancelled by user, device disconnected) make a note about failed migration
             dispatch({
-                type: METADATA.SET_CANCELLED_FOR_DEVICE,
+                type: METADATA.SET_FAILED_MIGRATION,
                 payload: {
                     deviceState: device.state,
-                    cancelled: false,
-                },
-            });
-        } else if (
-            result.payload.error === 'cancelled' ||
-            result.payload.code === 'Method_Cancel'
-        ) {
-            dispatch({
-                type: METADATA.SET_CANCELLED_FOR_DEVICE,
-                payload: {
-                    deviceState: device.state,
-                    cancelled: true,
+                    failed: true,
                 },
             });
         }
@@ -872,10 +875,9 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
         return false;
     }
 
-    // user clicked "cancel" on device during "Enable labeling" dialogue
-    // suite detected a reason to init metadata (chagne in labelable entities set)
+    // migration failed and suite detected a reason to init metadata automatically (change in labelable entities set)
     // but it still respects users choice not to work with metadata for this device
-    if (!force && getState().metadata.cancelledForDevices[device.state]) {
+    if (!force && getState().metadata.failedMigration?.[device.state]) {
         return false;
     }
 
@@ -884,11 +886,11 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
         dispatch(enableMetadata());
     }
 
-    dispatch({ type: METADATA.SET_INITIATING, payload: true });
-
     let deviceMetadata: DeviceMetadata | undefined = device.metadata;
     // 2. set device metadata key (master key).
     if (!deviceMetadata[METADATA.ENCRYPTION_VERSION]) {
+        dispatch({ type: METADATA.SET_INITIATING, payload: true });
+
         await dispatch(setDeviceMetadataKey(METADATA.ENCRYPTION_VERSION));
     }
 
@@ -917,6 +919,9 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
     }
 
     // 5. migration
+    if (!getState().metadata.initiating) {
+        dispatch({ type: METADATA.SET_INITIATING, payload: true });
+    }
     const migrationResult = await dispatch(handleEncryptionVersionMigration());
 
     // failed migration => labeling disabled
@@ -1036,87 +1041,76 @@ const createMigrationPromise =
     (dispatch: Dispatch, getState: GetState) =>
     () =>
         // eslint-disable-next-line no-async-promise-executor
-        new Promise(async resolve => {
+        new Promise(async (resolve, reject) => {
             const { device } = getState().suite;
             if (!device?.state || !device.metadata[METADATA.ENCRYPTION_VERSION]) {
-                console.error('metadata migration: device unexpected state'); // or throw, or error? i never know
-                return;
+                return reject(new Error('device unexpected state'));
+            }
+            const prevData =
+                fetchData &&
+                (await dispatch(
+                    fetchMetadata({
+                        entity,
+                        encryptionVersion: prevEncryptionVersion,
+                        // tudu huh
+                        provider: getState().metadata.providers[0],
+                    }),
+                ));
+
+            const nextKeys = entity[METADATA.ENCRYPTION_VERSION];
+
+            if (!nextKeys) {
+                return reject(new Error('next keys are missing'));
             }
 
-            try {
-                const prevData =
-                    fetchData &&
-                    (await dispatch(
-                        fetchMetadata({
-                            entity,
-                            encryptionVersion: prevEncryptionVersion,
-                            // tudu huh
-                            provider: getState().metadata.providers[0],
-                        }),
-                    ));
-
-                const nextKeys = entity[METADATA.ENCRYPTION_VERSION];
-
-                if (!nextKeys) {
-                    console.error('metadata migration: next keys are missing');
-                    return; // should never happen
-                }
-
-                const dummy = { dummy: getWeakRandomId(getRandomNumberInRange(1, 100)) };
-                const prevKeys = entity[prevEncryptionVersion];
-                if (!prevKeys) {
-                    console.error('metadata migration: prev keys are missing');
-                    return; // should never happen
-                }
-
-                const defaultEntityData =
-                    entity.type === 'account'
-                        ? cloneObject(METADATA.DEFAULT_ACCOUNT_METADATA)
-                        : cloneObject(METADATA.DEFAULT_WALLET_METADATA);
-                const nextData =
-                    prevData && 'data' in prevData
-                        ? prevData.data
-                        : { ...defaultEntityData, ...dummy };
-
-                const providerInstance = dispatch(
-                    getProviderInstance({ clientId: getState().metadata.providers[0]!.clientId }),
-                );
-
-                if (!providerInstance) {
-                    // provider should always be set here
-                    return false;
-                }
-
-                dispatch(
-                    setMetadata({
-                        ...nextKeys,
-                        data: nextData,
-                        // todo: huh huh
-                        provider: getState().metadata.providers[0]!,
-                    }),
-                );
-
-                const saveResult = await dispatch(
-                    encryptAndSaveMetadata({
-                        ...nextKeys,
-                        data: nextData,
-                        // todo: huh huh
-                        provider: getState().metadata.providers[0]!,
-                    }),
-                );
-
-                if (fetchData && saveResult) {
-                    // rename only if next version was saved correctly
-                    await providerInstance.renameFile(
-                        prevKeys.fileName,
-                        prevKeys.fileName.replace('.mtdt', '_v1.mtdt'),
-                    );
-                }
-            } catch (err) {
-                console.error('metadata migration failed');
-            } finally {
-                resolve(undefined);
+            const dummy = { dummy: getWeakRandomId(getRandomNumberInRange(1, 100)) };
+            const prevKeys = entity[prevEncryptionVersion];
+            if (!prevKeys) {
+                return reject(new Error('prev keys are missing'));
             }
+
+            const defaultEntityData =
+                entity.type === 'account'
+                    ? cloneObject(METADATA.DEFAULT_ACCOUNT_METADATA)
+                    : cloneObject(METADATA.DEFAULT_WALLET_METADATA);
+            const nextData =
+                prevData && 'data' in prevData ? prevData.data : { ...defaultEntityData, ...dummy };
+
+            const providerInstance = dispatch(
+                getProviderInstance({ clientId: getState().metadata.providers[0]!.clientId }),
+            );
+
+            if (!providerInstance) {
+                // provider should always be set here
+                return reject(new Error('provider not connected'));
+            }
+
+            dispatch(
+                setMetadata({
+                    ...nextKeys,
+                    data: nextData,
+                    // todo: huh huh
+                    provider: getState().metadata.providers[0]!,
+                }),
+            );
+            const saveResult = await dispatch(
+                encryptAndSaveMetadata({
+                    ...nextKeys,
+                    data: nextData,
+                    // todo: huh huh
+                    provider: getState().metadata.providers[0]!,
+                }),
+            );
+
+            if (fetchData && saveResult) {
+                // rename only if next version was saved correctly
+                await providerInstance.renameFile(
+                    prevKeys.fileName,
+                    prevKeys.fileName.replace('.mtdt', '_v1.mtdt'),
+                );
+            }
+
+            resolve(undefined);
         });
 
 /**
@@ -1250,25 +1244,32 @@ const handleEncryptionVersionMigration =
         // NOTE: I understand that this is not the right layer to rate limit access to provider API. It should be handled in provider service itself but
         // I don't have free hands to do it now. So I am running all requests in series as a workaround now. Correct solution would be
         // implementing provider.batchWrite and do batching if possible and if not, use single requests with some rate limiting
+        try {
+            await promiseAllSequence([
+                ...entitiesToMigrate.map(entity => {
+                    const promise = dispatch(
+                        createMigrationPromise(entity, prevEncryptionVersion, true),
+                    );
+                    return () => promise();
+                }),
+                ...entititiesToCreateDummies.map(entity => {
+                    const promise = dispatch(
+                        createMigrationPromise(entity, prevEncryptionVersion, false),
+                    );
+                    return () => promise();
+                }),
+            ]);
+        } catch (err) {
+            dispatch({
+                type: METADATA.SET_FAILED_MIGRATION,
+                payload: {
+                    deviceState: device.state,
+                    failed: true,
+                },
+            });
 
-        // NOTE2: If application exits in the process of running this, no hardship should happen. Migration will be left unfinished meaning that it will
-        // prompt user next time again for the remaining 'labelableEntitites'
-
-        // todo: handle error from Promise.allSequence. it throws right?
-        await promiseAllSequence([
-            ...entitiesToMigrate.map(entity => {
-                const promise = dispatch(
-                    createMigrationPromise(entity, prevEncryptionVersion, true),
-                );
-                return () => promise();
-            }),
-            ...entititiesToCreateDummies.map(entity => {
-                const promise = dispatch(
-                    createMigrationPromise(entity, prevEncryptionVersion, false),
-                );
-                return () => promise();
-            }),
-        ]);
+            return { success: false, error: err.message };
+        }
 
         return { success: true };
     };

@@ -691,7 +691,7 @@ export const migrate: OnUpgradeFunc<SuiteDBSchema> = async (
                 const updatedMetadata = {
                     ...metadata,
                     entitites: [],
-                    cancelledForDevices: {},
+                    failedMigration: {},
                 };
                 return updatedMetadata;
             });

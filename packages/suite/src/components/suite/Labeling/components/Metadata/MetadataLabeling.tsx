@@ -9,9 +9,8 @@ import { Translation } from 'src/components/suite';
 import { Props, ExtendedProps, DropdownMenuItem } from './definitions';
 import { withEditable } from './withEditable';
 import { withDropdown } from './withDropdown';
-import { selectIsLabelingAvailable } from 'src/reducers/suite/metadataReducer';
+import { selectIsLabelingInitPossible } from 'src/reducers/suite/metadataReducer';
 import type { Timeout } from '@trezor/type-utils';
-import { METADATA } from 'src/actions/suite/constants';
 
 const LabelValue = styled.div`
     overflow: hidden;
@@ -208,7 +207,7 @@ const getLocalizedActions = (type: MetadataAddPayload['type']) => {
 export const MetadataLabeling = (props: Props) => {
     const metadata = useSelector(state => state.metadata);
     const dispatch = useDispatch();
-    const { isDiscoveryRunning, device } = useDiscovery();
+    const { isDiscoveryRunning } = useDiscovery();
     const [showSuccess, setShowSuccess] = useState(false);
     const [pending, setPending] = useState(false);
     const theme = useTheme();
@@ -227,27 +226,13 @@ export const MetadataLabeling = (props: Props) => {
         };
     }, [props.payload.defaultValue, timeout]);
 
-    const isLabelingAvailable = useSelector(selectIsLabelingAvailable);
-
-    // todo: selector
-    // labeling is possible (it is possible to make it available) when we may obtain keys from device. If enabled, we already have them
-    // (and only need to connect provider), or if device is connected, we may initiate TrezorConnect.CipherKeyValue call and get them
-    const labelingPossible =
-        !props.isDisabled && (device?.metadata?.[METADATA.ENCRYPTION_VERSION] || device?.connected);
+    const isLabelingInitPossible = useSelector(selectIsLabelingInitPossible);
 
     // is this concrete instance being edited?
     const editActive = metadata.editing === props.payload.defaultValue;
 
     const activateEdit = () => {
-        // when clicking on inline input edit, ensure that everything needed is already ready
-        if (
-            // isn't initiation in progress?
-            !metadata.initiating &&
-            // is there something that needs to be initiated?
-            !isLabelingAvailable
-        ) {
-            dispatch(init(true));
-        }
+        dispatch(init(true));
         dispatch(setEditing(props.payload.defaultValue));
     };
 
@@ -297,7 +282,8 @@ export const MetadataLabeling = (props: Props) => {
     const labelContainerDatatest = `${dataTestBase}/hover-container`;
 
     // should "add label"/"edit label" button be visible
-    const showActionButton = labelingPossible && !showSuccess && !editActive;
+    const showActionButton =
+        !props.isDisabled && isLabelingInitPossible && !showSuccess && !editActive;
     const isVisible = pending || props.visible;
 
     // metadata is still initiating, on hover, show only disabled button with spinner

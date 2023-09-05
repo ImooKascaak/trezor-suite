@@ -311,7 +311,7 @@ export const startDiscoveryThunk = createThunk(
     async (_, { dispatch, getState, extra }): Promise<void> => {
         const {
             selectors: { selectMetadata, selectDevice, selectDiscoveryForDevice },
-            thunks: { initMetadata, fetchAndSaveMetadata },
+            thunks: { initMetadata },
             actions: { requestAuthConfirm },
         } = extra;
         const device = selectDevice(getState());
@@ -414,9 +414,9 @@ export const startDiscoveryThunk = createThunk(
 
             // if previous discovery status was running (typically after application start or when user added a new account)
             // trigger fetch metadata; necessary to load account labels
-            if (discovery.status === DiscoveryStatus.RUNNING && device.state) {
-                await dispatch(fetchAndSaveMetadata(device.state));
-            }
+            // if (discovery.status === DiscoveryStatus.RUNNING && device.state) {
+            //     await dispatch(fetchAndSaveMetadata(device.state));
+            // }
 
             dispatch(
                 completeDiscovery({

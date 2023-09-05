@@ -21,7 +21,7 @@ export const initialState: MetadataState = {
         labels: '',
     },
     entities: [],
-    cancelledForDevices: {},
+    failedMigration: {},
 };
 
 type MetadataRootState = {
@@ -76,12 +76,11 @@ const metadataReducer = (state = initialState, action: Action): MetadataState =>
             case METADATA.SET_ENTITIES_DESCRIPTORS:
                 draft.entities = action.payload;
                 break;
-            case METADATA.SET_CANCELLED_FOR_DEVICE:
-                if (action.payload.cancelled) {
-                    draft.cancelledForDevices[action.payload.deviceState] =
-                        action.payload.cancelled;
+            case METADATA.SET_FAILED_MIGRATION:
+                if (action.payload.failed) {
+                    draft.failedMigration[action.payload.deviceState] = action.payload.failed;
                 } else {
-                    delete draft.cancelledForDevices[action.payload.deviceState];
+                    delete draft.failedMigration[action.payload.deviceState];
                 }
                 break;
 
@@ -183,19 +182,29 @@ export const selectLabelingDataForWallet = (
     return DEFAULT_WALLET_METADATA;
 };
 
-// is everything ready (more or less) to add label?
+/**
+ * Is everything ready to add label? If not, suite should call metadata.init action
+ */
 export const selectIsLabelingAvailable = (state: MetadataRootState) => {
-    const { enabled, cancelledForDevices } = selectMetadata(state);
+    const { enabled, failedMigration } = selectMetadata(state);
     const provider = selectSelectedProviderForLabels(state);
     const device = selectDevice(state);
 
-    return !!(
-        device?.state &&
+    return (
         enabled &&
-        device.metadata?.[METADATA.ENCRYPTION_VERSION] &&
-        provider &&
-        !cancelledForDevices[device.state]
+        device?.metadata?.[METADATA.ENCRYPTION_VERSION] &&
+        !!provider &&
+        device.state &&
+        !failedMigration?.[device.state]
     );
+};
+
+/**
+ it is possible to initiate metadata 
+ */
+export const selectIsLabelingInitPossible = (state: MetadataRootState) => {
+    const device = selectDevice(state);
+    return device?.connected && device.state && state.suite.online;
 };
 
 export default metadataReducer;
