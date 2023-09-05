@@ -21,13 +21,7 @@ export const COINJOIN_NETWORKS: PartialRecord<NetworkSymbol, ServerEnvironment> 
             coordinatorName: 'CoinJoinCoordinatorIdentifier',
             coordinatorUrl: 'https://wasabiwallet.io/wabisabi/',
             wabisabiBackendUrl: 'https://wasabiwallet.io/',
-            blockbookUrls: [
-                'https://btc1.trezor.io',
-                'https://btc2.trezor.io',
-                'https://btc3.trezor.io',
-                'https://btc4.trezor.io',
-                'https://btc5.trezor.io',
-            ],
+            blockbookUrls: ['https://btc3.trezor.io'],
             onionDomains: {
                 'trezor.io': 'trezoriovpjcahpzkrewelclulmszwbqpzmzgub37gbcjlvluxtruqad.onion',
                 'wasabiwallet.io': 'wasabiukrxmkdgve5kynjztuovbg43uxcbcxn6y2okcrsg7gb6jdmbad.onion',
