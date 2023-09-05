@@ -301,7 +301,10 @@ export const MetadataLabeling = (props: Props) => {
 
     // should "add label"/"edit label" button be visible
     const showActionButton =
-        !props.isDisabled && isLabelingInitPossible && !showSuccess && !editActive;
+        !props.isDisabled &&
+        (isLabelingAvailable || isLabelingInitPossible) &&
+        !showSuccess &&
+        !editActive;
     const isVisible = pending || props.visible;
 
     // metadata is still initiating, on hover, show only disabled button with spinner

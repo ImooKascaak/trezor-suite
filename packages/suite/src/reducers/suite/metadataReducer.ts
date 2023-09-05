@@ -183,7 +183,7 @@ export const selectLabelingDataForWallet = (
 };
 
 /**
- * Is everything ready to add label? If not, suite should call metadata.init action
+ * Is everything ready to add label?
  */
 export const selectIsLabelingAvailable = (state: MetadataRootState) => {
     const { enabled, failedMigration } = selectMetadata(state);
@@ -204,7 +204,13 @@ export const selectIsLabelingAvailable = (state: MetadataRootState) => {
  */
 export const selectIsLabelingInitPossible = (state: MetadataRootState) => {
     const device = selectDevice(state);
-    return device?.connected && device.state && state.suite.online;
+
+    return (
+        // device already has keys or it is at least connected and authorized
+        (device?.metadata?.[METADATA.ENCRYPTION_VERSION] || (device?.connected && device.state)) &&
+        // storage provider is connected or we are at least able to connect to it
+        (selectSelectedProviderForLabels(state) || state.suite.online)
+    );
 };
 
 export default metadataReducer;
