@@ -4,7 +4,6 @@ import TrezorConnect from '@trezor/connect';
 import { analytics, EventType } from '@trezor/suite-analytics';
 import {
     createDeferred,
-    promiseAllSequence,
     getWeakRandomId,
     getRandomNumberInRange,
     arrayPartition,
@@ -341,7 +340,7 @@ export const getLabelableEntities =
 
 type LabelableEntity = ReturnType<ReturnType<typeof getLabelableEntities>>[number];
 
-export const fetchMetadata =
+const fetchMetadata =
     ({
         provider,
         entity,
@@ -592,12 +591,18 @@ export const addDeviceMetadata =
         const device = getState().devices.find(d => d.state === payload.deviceState);
         const provider = selectSelectedProviderForLabels(getState());
 
-        if (!provider) return Promise.resolve(false);
+        if (!provider)
+            return Promise.resolve({
+                success: false,
+                error: 'provider missing',
+            });
 
         const { fileName, aesKey } = device?.metadata[METADATA.ENCRYPTION_VERSION] || {};
         if (!fileName || !aesKey) {
-            console.error('fileName or aesKey is missing for device', device?.state);
-            return Promise.resolve(false);
+            return Promise.resolve({
+                success: false,
+                error: `fileName or aesKey is missing for device ${device?.state}`,
+            });
         }
 
         // todo: not danger overwrite empty?
@@ -639,19 +644,20 @@ export const addDeviceMetadata =
  */
 export const addAccountMetadata =
     (payload: Exclude<MetadataAddPayload, { type: 'walletLabel' }>, save = true) =>
-    async (dispatch: Dispatch, getState: GetState) => {
+    (dispatch: Dispatch, getState: GetState) => {
         const account = getState().wallet.accounts.find(a => a.key === payload.accountKey);
         const provider = selectSelectedProviderForLabels(getState());
 
-        if (!account || !provider) return false;
+        if (!account || !provider) return { success: false, error: 'account or provider missing' };
 
         // todo: not danger overwrite empty?
         const { fileName, aesKey } = account.metadata?.[METADATA.ENCRYPTION_VERSION] || {};
 
         if (!fileName || !aesKey) {
-            throw new Error(
-                `filename of version ${METADATA.ENCRYPTION_VERSION} does not exist for account ${account.path}`,
-            );
+            return {
+                success: false,
+                error: `filename of version ${METADATA.ENCRYPTION_VERSION} does not exist for account ${account.path}`,
+            };
         }
         const data = provider.data[fileName];
 
@@ -661,7 +667,7 @@ export const addAccountMetadata =
 
         if (payload.type === 'outputLabel') {
             if (typeof payload.value !== 'string' || payload.value.length === 0) {
-                if (!nextMetadata.outputLabels[payload.txid]) return false;
+                if (!nextMetadata.outputLabels[payload.txid]) return { success: true };
                 delete nextMetadata.outputLabels[payload.txid][payload.outputIndex];
                 if (Object.keys(nextMetadata.outputLabels[payload.txid]).length === 0) {
                     delete nextMetadata.outputLabels[payload.txid];
@@ -706,9 +712,9 @@ export const addAccountMetadata =
         );
 
         // we might intentionally skip saving metadata content to persistent storage.
-        if (!save) return true;
+        if (!save) return { success: true };
 
-        await dispatch(
+        return dispatch(
             encryptAndSaveMetadata({
                 data: {
                     accountLabel: nextMetadata.accountLabel,
@@ -720,8 +726,6 @@ export const addAccountMetadata =
                 provider,
             }),
         );
-
-        return true;
     };
 
 const encryptAndSaveMetadata =
@@ -741,42 +745,18 @@ const encryptAndSaveMetadata =
 
         if (!providerInstance) {
             // provider should always be set here
-            return false;
+            return { success: false, error: 'no provider instance' };
         }
 
-        try {
-            const encrypted = await metadataUtils.encrypt(
-                {
-                    version: METADATA.FORMAT_VERSION,
-                    ...data,
-                },
-                aesKey,
-            );
+        const encrypted = await metadataUtils.encrypt(
+            {
+                version: METADATA.FORMAT_VERSION,
+                ...data,
+            },
+            aesKey,
+        );
 
-            const result = await providerInstance.setFileContent(fileName, encrypted);
-            if (!result.success) {
-                // todo: this must not be here, but somewhere where batch of encrypt and save is scheduled, otherwise we get dozens of toasts
-                dispatch(
-                    handleProviderError({
-                        error: result,
-                        action: ProviderErrorAction.SAVE,
-                        clientId: provider.clientId,
-                    }),
-                );
-                return false;
-            }
-            return true;
-        } catch (err) {
-            const error = providerInstance.error('OTHER_ERROR', err.message);
-            dispatch(
-                handleProviderError({
-                    error,
-                    action: ProviderErrorAction.SAVE,
-                    clientId: provider.clientId,
-                }),
-            );
-            return false;
-        }
+        return providerInstance.setFileContent(fileName, encrypted);
     };
 
 /**
@@ -851,12 +831,44 @@ export const setDeviceMetadataKey =
         // toast dispatched
     };
 
-export const addMetadata = (payload: MetadataAddPayload) => (dispatch: Dispatch) => {
-    if (payload.type === 'walletLabel') {
-        return dispatch(addDeviceMetadata(payload));
-    }
-    return dispatch(addAccountMetadata(payload));
-};
+export const addMetadata =
+    (payload: MetadataAddPayload) => (dispatch: Dispatch, getState: GetState) =>
+        (payload.type === 'walletLabel'
+            ? dispatch(addDeviceMetadata(payload))
+            : dispatch(addAccountMetadata(payload))
+        ).then(result => {
+            if (!result.success) {
+                if ('code' in result) {
+                    dispatch(
+                        handleProviderError({
+                            error: result,
+                            action: ProviderErrorAction.SAVE,
+                            clientId: getState().metadata.providers[0]?.clientId,
+                        }),
+                    );
+                } else {
+                    const providerInstance = dispatch(
+                        getProviderInstance({
+                            clientId: getState().metadata.providers[0].clientId,
+                        }),
+                    );
+                    if (providerInstance) {
+                        dispatch(
+                            handleProviderError({
+                                error: providerInstance.error(
+                                    'OTHER_ERROR',
+                                    'error' in result ? result.error : '',
+                                ),
+                                action: ProviderErrorAction.SAVE,
+                                clientId: getState().metadata.providers[0]?.clientId,
+                            }),
+                        );
+                    }
+                }
+            }
+
+            return result.success;
+        });
 
 /**
  * init - prepare everything needed to load + decrypt and upload + decrypt metadata. Note that this method
@@ -927,7 +939,20 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
     if (!migrationResult.success) {
         dispatch({ type: METADATA.SET_INITIATING, payload: false });
         dispatch({ type: METADATA.SET_EDITING, payload: undefined });
-        dispatch(notificationsActions.addToast({ type: 'error', error: migrationResult.error! }));
+        dispatch({
+            type: METADATA.SET_FAILED_MIGRATION,
+            payload: {
+                deviceState: device.state!,
+                failed: true,
+            },
+        });
+        dispatch(
+            notificationsActions.addToast({
+                type: 'error',
+                error: `migration failed: ${migrationResult.error}`,
+            }),
+        );
+
         return;
     }
 
@@ -1037,80 +1062,81 @@ const createMigrationPromise =
         prevEncryptionVersion: MetadataEncryptionVersion,
         fetchData: boolean,
     ) =>
-    (dispatch: Dispatch, getState: GetState) =>
-    () =>
-        // eslint-disable-next-line no-async-promise-executor
-        new Promise(async (resolve, reject) => {
-            const { device } = getState().suite;
-            if (!device?.state || !device.metadata[METADATA.ENCRYPTION_VERSION]) {
-                return reject(new Error('device unexpected state'));
-            }
-            const prevData =
-                fetchData &&
-                (await dispatch(
-                    fetchMetadata({
-                        entity,
-                        encryptionVersion: prevEncryptionVersion,
-                        // tudu huh
-                        provider: getState().metadata.providers[0],
-                    }),
-                ));
-
-            const nextKeys = entity[METADATA.ENCRYPTION_VERSION];
-
-            if (!nextKeys) {
-                return reject(new Error('next keys are missing'));
-            }
-
-            const dummy = { dummy: getWeakRandomId(getRandomNumberInRange(1, 100)) };
-            const prevKeys = entity[prevEncryptionVersion];
-            if (!prevKeys) {
-                return reject(new Error('prev keys are missing'));
-            }
-
-            const defaultEntityData =
-                entity.type === 'account'
-                    ? cloneObject(METADATA.DEFAULT_ACCOUNT_METADATA)
-                    : cloneObject(METADATA.DEFAULT_WALLET_METADATA);
-            const nextData =
-                prevData && 'data' in prevData ? prevData.data : { ...defaultEntityData, ...dummy };
-
-            const providerInstance = dispatch(
-                getProviderInstance({ clientId: getState().metadata.providers[0]!.clientId }),
-            );
-
-            if (!providerInstance) {
-                // provider should always be set here
-                return reject(new Error('provider not connected'));
-            }
-
-            dispatch(
-                setMetadata({
-                    ...nextKeys,
-                    data: nextData,
-                    // todo: huh huh
-                    provider: getState().metadata.providers[0]!,
+    async (dispatch: Dispatch, getState: GetState) => {
+        const { device } = getState().suite;
+        if (!device?.state || !device.metadata[METADATA.ENCRYPTION_VERSION]) {
+            return { success: false, error: 'device unexpected state' };
+        }
+        const prevData =
+            fetchData &&
+            (await dispatch(
+                fetchMetadata({
+                    entity,
+                    encryptionVersion: prevEncryptionVersion,
+                    // tudu huh
+                    provider: getState().metadata.providers[0],
                 }),
-            );
-            const saveResult = await dispatch(
-                encryptAndSaveMetadata({
-                    ...nextKeys,
-                    data: nextData,
-                    // todo: huh huh
-                    provider: getState().metadata.providers[0]!,
-                }),
-            );
+            ));
 
-            if (fetchData && saveResult) {
-                // rename only if next version was saved correctly
-                await providerInstance.renameFile(
-                    prevKeys.fileName,
-                    prevKeys.fileName.replace('.mtdt', '_v1.mtdt'),
-                );
-            }
+        const nextKeys = entity[METADATA.ENCRYPTION_VERSION];
 
-            resolve(undefined);
-        });
+        if (!nextKeys) {
+            return { success: false, error: 'next keys are missing' };
+        }
+
+        const dummy = { dummy: getWeakRandomId(getRandomNumberInRange(1, 100)) };
+        const prevKeys = entity[prevEncryptionVersion];
+        if (!prevKeys) {
+            return { success: false, error: 'prev keys are missing' };
+        }
+
+        const defaultEntityData =
+            entity.type === 'account'
+                ? cloneObject(METADATA.DEFAULT_ACCOUNT_METADATA)
+                : cloneObject(METADATA.DEFAULT_WALLET_METADATA);
+        const nextData =
+            prevData && 'data' in prevData ? prevData.data : { ...defaultEntityData, ...dummy };
+
+        const providerInstance = dispatch(
+            getProviderInstance({ clientId: getState().metadata.providers[0]!.clientId }),
+        );
+
+        if (!providerInstance) {
+            // provider should always be set here
+            return { success: false, error: 'provider not connected' };
+        }
+
+        dispatch(
+            setMetadata({
+                ...nextKeys,
+                data: nextData,
+                // todo: huh huh
+                provider: getState().metadata.providers[0]!,
+            }),
+        );
+        const saveResult = await dispatch(
+            encryptAndSaveMetadata({
+                ...nextKeys,
+                data: nextData,
+                // todo: huh huh
+                provider: getState().metadata.providers[0]!,
+            }),
+        );
+
+        if (!saveResult.success) {
+            return saveResult;
+        }
+
+        if (fetchData && saveResult) {
+            // rename only if next version was saved correctly
+            await providerInstance.renameFile(
+                prevKeys.fileName,
+                prevKeys.fileName.replace('.mtdt', '_v1.mtdt'),
+            );
+        }
+
+        return { success: true };
+    };
 
 /**
  * Check whether encryption version migration is needed and if yes execute it
@@ -1121,6 +1147,7 @@ const handleEncryptionVersionMigration =
         dispatch: Dispatch,
         getState: GetState,
     ): Promise<{ success: boolean; error?: string }> => {
+        console.log('promise called');
         // 1. select lower encryption version
         const prevEncryptionVersion = (METADATA.ENCRYPTION_VERSION -
             1) as MetadataEncryptionVersion;
@@ -1243,31 +1270,23 @@ const handleEncryptionVersionMigration =
         // NOTE: I understand that this is not the right layer to rate limit access to provider API. It should be handled in provider service itself but
         // I don't have free hands to do it now. So I am running all requests in series as a workaround now. Correct solution would be
         // implementing provider.batchWrite and do batching if possible and if not, use single requests with some rate limiting
-        try {
-            await promiseAllSequence([
-                ...entitiesToMigrate.map(entity => {
-                    const promise = dispatch(
-                        createMigrationPromise(entity, prevEncryptionVersion, true),
-                    );
-                    return () => promise();
-                }),
-                ...entititiesToCreateDummies.map(entity => {
-                    const promise = dispatch(
-                        createMigrationPromise(entity, prevEncryptionVersion, false),
-                    );
-                    return () => promise();
-                }),
-            ]);
-        } catch (err) {
-            dispatch({
-                type: METADATA.SET_FAILED_MIGRATION,
-                payload: {
-                    deviceState: device.state,
-                    failed: true,
-                },
-            });
+        const promises = [
+            ...entitiesToMigrate.map(
+                entity => () =>
+                    dispatch(createMigrationPromise(entity, prevEncryptionVersion, true)),
+            ),
+            ...entititiesToCreateDummies.map(
+                entity => () =>
+                    dispatch(createMigrationPromise(entity, prevEncryptionVersion, false)),
+            ),
+        ];
 
-            return { success: false, error: err.message };
+        for (let i = 0; i < promises.length; ++i) {
+            /* eslint-disable no-await-in-loop */
+            const result = await promises[i]();
+            if (!result.success) {
+                return result;
+            }
         }
 
         return { success: true };
