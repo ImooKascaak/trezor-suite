@@ -7,36 +7,50 @@ import {
     getFiatRateKey,
     selectFiatRatesByFiatRateKey,
 } from '@suite-native/fiat-rates';
-import { isTestnet } from '@suite-common/wallet-utils';
+import { isTestnet, toFiatCurrency } from '@suite-common/wallet-utils';
 import { selectFiatCurrencyCode, selectFiatCurrency } from '@suite-native/module-settings';
 import { FiatRates } from '@trezor/blockchain-link';
+import { TokenAddress } from '@suite-common/wallet-types';
 
-export const useFiatValueConvertedFromCrypto = ({
-    cryptoValue,
-    network,
-    customRates,
-}: {
+import { convertTokenValueToDecimal } from '../utils';
+
+type useFiatFromCryptoValueParams = {
     cryptoValue: string | null;
     network: NetworkSymbol;
+    tokenAddress?: TokenAddress;
+    tokenDecimals?: number;
     customRates?: FiatRates;
-}) => {
+};
+
+export const useFiatFromCryptoValue = ({
+    cryptoValue,
+    network,
+    tokenAddress,
+    tokenDecimals = 0,
+    customRates,
+}: useFiatFromCryptoValueParams) => {
     const fiatCurrencyCode = useSelector(selectFiatCurrencyCode);
-    const fiatRateKey = getFiatRateKey(network, fiatCurrencyCode);
+    const fiatRateKey = getFiatRateKey(network, fiatCurrencyCode, tokenAddress);
     const currentRate = useSelector((state: FiatRatesRootState) =>
         selectFiatRatesByFiatRateKey(state, fiatRateKey),
     );
+
+    const rates = customRates ?? { [fiatCurrencyCode]: currentRate?.rate };
     const fiatCurrency = useSelector(selectFiatCurrency);
 
     const isTestnetCoin = isTestnet(network);
 
     if (!cryptoValue || !currentRate || currentRate.error || isTestnetCoin) return null;
 
-    const fiatValue = convertCryptoToFiatAmount({
+    if (tokenAddress) {
+        const decimalValue = convertTokenValueToDecimal(cryptoValue, tokenDecimals);
+        return toFiatCurrency(decimalValue.toString(), fiatCurrencyCode, rates);
+    }
+
+    return convertCryptoToFiatAmount({
         value: cryptoValue,
-        rates: customRates ?? { [fiatCurrencyCode]: currentRate?.rate },
+        rates,
         fiatCurrency: fiatCurrency.label,
         network,
     });
-
-    return fiatValue;
 };

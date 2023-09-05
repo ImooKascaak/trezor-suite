@@ -4,7 +4,8 @@ import { useSelector } from 'react-redux';
 import { HStack, VStack } from '@suite-native/atoms';
 import {
     EthereumTokenAmountFormatter,
-    EthereumTokenToFiatAmountFormatter,
+    FiatBalanceFormatter,
+    useFiatFromCryptoValue,
 } from '@suite-native/formatters';
 import { CryptoIcon } from '@suite-common/icons';
 import {
@@ -31,6 +32,12 @@ export const AccountDetailTokenHeader = ({
         selectEthereumAccountTokenSymbol(state, accountKey, tokenContract),
     );
 
+    const fiatValue = useFiatFromCryptoValue({
+        cryptoValue: String(tokenAccount?.balance),
+        network: 'eth',
+        tokenAddress: tokenAccount?.contract,
+    });
+
     if (!tokenAccount || !tokenAccount.balance) return null;
 
     return (
@@ -39,13 +46,7 @@ export const AccountDetailTokenHeader = ({
                 <CryptoIcon symbol={tokenAccount.contract} size="extraSmall" />
                 <EthereumTokenAmountFormatter value={tokenAccount?.balance} symbol={tokenSymbol} />
             </HStack>
-            <EthereumTokenToFiatAmountFormatter
-                variant="titleLarge"
-                contract={tokenAccount.contract}
-                value={tokenAccount?.balance}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-            />
+            <FiatBalanceFormatter value={fiatValue} />
         </VStack>
     );
 };
