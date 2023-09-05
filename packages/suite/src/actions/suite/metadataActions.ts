@@ -881,6 +881,8 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
         return false;
     }
 
+    dispatch({ type: METADATA.SET_INITIATING, payload: true });
+
     // 1. set metadata enabled globally
     if (!getState().metadata.enabled) {
         dispatch(enableMetadata());
@@ -888,9 +890,7 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
 
     let deviceMetadata: DeviceMetadata | undefined = device.metadata;
     // 2. set device metadata key (master key).
-    if (!deviceMetadata[METADATA.ENCRYPTION_VERSION]) {
-        dispatch({ type: METADATA.SET_INITIATING, payload: true });
-
+    if (!deviceMetadata?.[METADATA.ENCRYPTION_VERSION]) {
         await dispatch(setDeviceMetadataKey(METADATA.ENCRYPTION_VERSION));
     }
 
@@ -923,7 +923,6 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
         dispatch({ type: METADATA.SET_INITIATING, payload: true });
     }
     const migrationResult = await dispatch(handleEncryptionVersionMigration());
-
     // failed migration => labeling disabled
     if (!migrationResult.success) {
         dispatch({ type: METADATA.SET_INITIATING, payload: false });

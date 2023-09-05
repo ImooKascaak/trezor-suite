@@ -9,7 +9,10 @@ import { Translation } from 'src/components/suite';
 import { Props, ExtendedProps, DropdownMenuItem } from './definitions';
 import { withEditable } from './withEditable';
 import { withDropdown } from './withDropdown';
-import { selectIsLabelingInitPossible } from 'src/reducers/suite/metadataReducer';
+import {
+    selectIsLabelingAvailable,
+    selectIsLabelingInitPossible,
+} from 'src/reducers/suite/metadataReducer';
 import type { Timeout } from '@trezor/type-utils';
 
 const LabelValue = styled.div`
@@ -227,12 +230,22 @@ export const MetadataLabeling = (props: Props) => {
     }, [props.payload.defaultValue, timeout]);
 
     const isLabelingInitPossible = useSelector(selectIsLabelingInitPossible);
+    const isLabelingAvailable = useSelector(selectIsLabelingAvailable);
 
     // is this concrete instance being edited?
     const editActive = metadata.editing === props.payload.defaultValue;
 
     const activateEdit = () => {
-        dispatch(init(true));
+        // when clicking on inline input edit, ensure that everything needed is already ready
+        if (
+            // isn't initiation in progress?
+            !metadata.initiating &&
+            // is there something that needs to be initiated?
+            !isLabelingAvailable
+        ) {
+            // provide force=true argument (user wants to enable metadata)
+            dispatch(init(true));
+        }
         dispatch(setEditing(props.payload.defaultValue));
     };
 
@@ -249,7 +262,12 @@ export const MetadataLabeling = (props: Props) => {
         dropdownItems = [...dropdownItems, ...props.dropdownOptions];
     }
 
-    const handleBlur = () => dispatch(setEditing(undefined));
+    const handleBlur = () => {
+        if (!metadata.initiating) {
+            dispatch(setEditing(undefined));
+        }
+    };
+
     const onSubmit = async (value: string | undefined) => {
         isSubscribedToSubmitResult.current = props.payload.defaultValue;
         setPending(true);
