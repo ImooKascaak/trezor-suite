@@ -1,7 +1,6 @@
 import styled from 'styled-components';
 
-import { DeviceAnimation } from 'src/components/onboarding';
-import { Warning, variables } from '@trezor/components';
+import { DeviceAnimation, Warning, variables } from '@trezor/components';
 import { TREZOR_RESELLERS_URL, TREZOR_SUPPORT_URL } from '@trezor/urls';
 import { Translation, TrezorLink } from 'src/components/suite';
 import type { TrezorDevice } from 'src/types/suite';
@@ -53,7 +52,12 @@ export const Hologram = ({ device }: HologramProps) => {
             </HologramSubHeading>
 
             <AnimationWrapper>
-                <DeviceAnimation type="HOLOGRAM" shape="ROUNDED-SMALL" loop device={device} />
+                <DeviceAnimation
+                    type="HOLOGRAM"
+                    shape="ROUNDED-SMALL"
+                    loop
+                    deviceModelInternal={device?.features?.internal_model}
+                />
             </AnimationWrapper>
 
             <StyledWarning>
