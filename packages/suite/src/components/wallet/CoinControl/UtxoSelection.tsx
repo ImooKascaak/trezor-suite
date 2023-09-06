@@ -18,8 +18,10 @@ import { UtxoTag } from 'src/components/wallet/CoinControl/UtxoTag';
 import { useSendFormContext } from 'src/hooks/wallet';
 import { useCoinjoinUnavailableUtxos } from 'src/hooks/wallet/form/useCoinjoinUnavailableUtxos';
 import { WalletAccountTransaction } from 'src/types/wallet';
-import { selectLabelingDataForSelectedAccount } from 'src/reducers/suite/metadataReducer';
-import { METADATA } from 'src/actions/suite/constants';
+import {
+    selectIsLabelingInitPossible,
+    selectLabelingDataForSelectedAccount,
+} from 'src/reducers/suite/metadataReducer';
 
 const VisibleOnHover = styled.div<{ alwaysVisible?: boolean }>`
     display: ${({ alwaysVisible }) => (alwaysVisible ? 'contents' : 'none')};
@@ -154,7 +156,6 @@ export const UtxoSelection = ({ transaction, utxo }: UtxoSelectionProps) => {
         },
     } = useSendFormContext();
 
-    const device = useSelector(state => state.suite.device);
     // selecting metadata from store rather than send form context which does not update on metadata change
     const { outputLabels } = useSelector(selectLabelingDataForSelectedAccount);
 
@@ -167,8 +168,7 @@ export const UtxoSelection = ({ transaction, utxo }: UtxoSelectionProps) => {
     const isChangeAddress = utxo.path.split('/').at(-2) === '1'; // change address always has a 1 on the penultimate level of the derivation path
     const outputLabel = outputLabels?.[utxo.txid]?.[utxo.vout];
 
-    // todo: use selector
-    const isLabelingPossible = device?.metadata?.[METADATA.ENCRYPTION_VERSION] || device?.connected;
+    const isLabelingPossible = useSelector(selectIsLabelingInitPossible);
     const anonymity = account.addresses?.anonymitySet?.[utxo.address];
 
     const isChecked = isCoinControlEnabled
