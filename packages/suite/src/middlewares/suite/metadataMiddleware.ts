@@ -18,13 +18,22 @@ const metadata =
         next(action);
 
         switch (action.type) {
+            // detect changes in state in labelable entities.
             // if labelable entitities differ from previous state after discovery completed init metadata
-            // todo: what if I add a hidden wallet but don't run discovery?
-            case '@common/wallet-core/discovery/complete': {
-                const { device } = api.getState().suite;
-                const nextState = api.dispatch(metadataActions.getLabelableEntitiesDescriptors());
 
-                if (api.getState().metadata.enabled && device?.state) {
+            // todo:
+            // @suite/auth-device (device received state). this unfortunatelly does not work yet
+            // this action updates "state.devices" but "state.suite.device" gets updated only after next action.
+            // I don't really know which device I am working with.
+            // worst case scenario without having this implemented is:
+            // 1. user has labeling enabled
+            // 2. goes directly to settings
+            // 3. enables labeling - label of his wallet would not load
+            case '@suite/auth-device':
+            // '@common/wallet-core/discovery/complete' changes account entities
+            case '@common/wallet-core/discovery/complete': {
+                const nextState = api.dispatch(metadataActions.getLabelableEntitiesDescriptors());
+                if (api.getState().metadata.enabled) {
                     if (prevState.join('') !== nextState.join('')) {
                         api.dispatch(metadataActions.init());
                     } else {
@@ -36,8 +45,6 @@ const metadata =
 
                 break;
             }
-
-            // todo: passphrase
 
             case ROUTER.LOCATION_CHANGE:
                 // if there is editing field active, changing route turns it inactive
