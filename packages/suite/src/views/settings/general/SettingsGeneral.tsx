@@ -25,14 +25,16 @@ import { BitcoinAmountUnit } from './BitcoinAmountUnit';
 import { NETWORKS } from 'src/config/wallet';
 import { DesktopSuiteBanner } from './DesktopSuiteBanner';
 import { METADATA } from 'src/actions/suite/constants';
+import {
+    selectIsLabelingInitPossible,
+    selectSelectedProviderForLabels,
+} from 'src/reducers/suite/metadataReducer';
 
 export const SettingsGeneral = () => {
     const isPromoHidden = useSelector(state => state.suite.settings.isDesktopSuitePromoHidden);
     const { isTorEnabled } = useSelector(selectTorState);
     const enabledNetworks = useSelector(selectEnabledNetworks);
     const desktopUpdate = useSelector(state => state.desktopUpdate);
-    const metadata = useSelector(state => state.metadata);
-    const device = useSelector(selectDevice);
 
     const { isMobileLayout } = useLayoutSize();
 
@@ -41,12 +43,8 @@ export const SettingsGeneral = () => {
             enabledNetworks.includes(symbol) && features?.includes('amount-unit'),
     );
 
-    const isMetadataEnabled = metadata.enabled && !metadata.initiating;
-    // todo: use selector
-    const isProviderConnected =
-        metadata.enabled &&
-        device?.metadata[METADATA.ENCRYPTION_VERSION] &&
-        !!metadata.providers.length;
+    const isLabelingInitPossible = useSelector(selectIsLabelingInitPossible);
+    const isProviderConnected = useSelector(selectSelectedProviderForLabels);
 
     return (
         <SettingsLayout data-test="@settings/index">
@@ -60,7 +58,7 @@ export const SettingsGeneral = () => {
 
             <SettingsSection title={<Translation id="TR_LABELING" />} icon="TAG_MINIMAL">
                 <Labeling />
-                {isMetadataEnabled &&
+                {isLabelingInitPossible &&
                     (isProviderConnected ? (
                         <DisconnectLabelingProvider />
                     ) : (
