@@ -643,7 +643,6 @@ export const migrate: OnUpgradeFunc<SuiteDBSchema> = async (
             return device;
         });
 
-        // todo: i don't get this ts-error :thinking-face:
         // @ts-expect-error
         await updateAll(transaction, 'metadata', metadata => {
             const updatedMetadata = {
@@ -683,27 +682,27 @@ export const migrate: OnUpgradeFunc<SuiteDBSchema> = async (
 
             return updatedMetadata;
         });
+    }
+    
+    if (oldVersion < 40) {
+        await updateAll(transaction, 'metadata', metadata => {
+            const updatedMetadata = {
+                ...metadata,
+                entitites: [],
+                failedMigration: {},
+            };
+            return updatedMetadata;
+        });
 
-        if (oldVersion < 40) {
-            await updateAll(transaction, 'metadata', metadata => {
-                const updatedMetadata = {
-                    ...metadata,
-                    entitites: [],
-                    failedMigration: {},
+        await updateAll(transaction, 'devices', device => {
+            if (device.metadata[1]) {
+                // remove device.metadata.status
+                device.metadata = {
+                    1: { ...device.metadata[1] },
                 };
-                return updatedMetadata;
-            });
+            }
 
-            await updateAll(transaction, 'devices', device => {
-                if (device.metadata[1]) {
-                    // remove device.metadata.status
-                    device.metadata = {
-                        1: { ...device.metadata[1] },
-                    };
-                }
-
-                return device;
-            });
-        }
+            return device;
+        });
     }
 };
