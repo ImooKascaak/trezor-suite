@@ -4665,6 +4665,34 @@
                 }
             }
         },
+        "AuthenticateDevice": {
+            "fields": {
+                "challenge": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 1
+                }
+            }
+        },
+        "AuthenticityProof": {
+            "fields": {
+                "ca_certificate": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 1
+                },
+                "device_certificate": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 2
+                },
+                "signature": {
+                    "rule": "required",
+                    "type": "bytes",
+                    "id": 3
+                }
+            }
+        },
         "WipeDevice": {
             "fields": {}
         },
@@ -7632,6 +7660,14 @@
                     "(bitcoin_only)": true,
                     "(wire_in)": true
                 },
+                "MessageType_AuthenticateDevice": {
+                    "(bitcoin_only)": true,
+                    "(wire_out)": true
+                },
+                "MessageType_AuthenticityProof": {
+                    "(bitcoin_only)": true,
+                    "(wire_in)": true
+                },
                 "MessageType_SetU2FCounter": {
                     "(wire_in)": true
                 },
@@ -8289,6 +8325,8 @@
                 "MessageType_UnlockPath": 93,
                 "MessageType_UnlockedPathRequest": 94,
                 "MessageType_ShowDeviceTutorial": 95,
+                "MessageType_AuthenticateDevice": 97,
+                "MessageType_AuthenticityProof": 98,
                 "MessageType_SetU2FCounter": 63,
                 "MessageType_GetNextU2FCounter": 80,
                 "MessageType_NextU2FCounter": 81,

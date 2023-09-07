@@ -1651,6 +1651,18 @@ export type FirmwareHash = {
     hash: string;
 };
 
+// AuthenticateDevice
+export type AuthenticateDevice = {
+    challenge: string;
+};
+
+// AuthenticityProof
+export type AuthenticityProof = {
+    ca_certificate: string;
+    device_certificate: string;
+    signature: string;
+};
+
 // WipeDevice
 export type WipeDevice = {};
 
@@ -2440,6 +2452,8 @@ export type MessageType = {
     Entropy: Entropy;
     GetFirmwareHash: GetFirmwareHash;
     FirmwareHash: FirmwareHash;
+    AuthenticateDevice: AuthenticateDevice;
+    AuthenticityProof: AuthenticityProof;
     WipeDevice: WipeDevice;
     ResetDevice: ResetDevice;
     BackupDevice: BackupDevice;
