@@ -643,7 +643,7 @@ export const migrate: OnUpgradeFunc<SuiteDBSchema> = async (
             return device;
         });
 
-        // todo: why expect error here? huh
+        // todo: i don't get this ts-error :thinking-face:
         // @ts-expect-error
         await updateAll(transaction, 'metadata', metadata => {
             const updatedMetadata = {
@@ -684,8 +684,6 @@ export const migrate: OnUpgradeFunc<SuiteDBSchema> = async (
             return updatedMetadata;
         });
 
-        // todo: we can merge this migration with version 39
-        // i just needed to enforce migration between deveop and branch
         if (oldVersion < 40) {
             await updateAll(transaction, 'metadata', metadata => {
                 const updatedMetadata = {
@@ -697,11 +695,7 @@ export const migrate: OnUpgradeFunc<SuiteDBSchema> = async (
             });
 
             await updateAll(transaction, 'devices', device => {
-                if (
-                    // @ts-expect-error
-                    device.metadata.status === 'enabled' &&
-                    device.metadata[1]
-                ) {
+                if (device.metadata[1]) {
                     // remove device.metadata.status
                     device.metadata = {
                         1: { ...device.metadata[1] },

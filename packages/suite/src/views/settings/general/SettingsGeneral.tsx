@@ -6,7 +6,7 @@ import { Translation } from 'src/components/suite';
 import { useLayoutSize, useSelector } from 'src/hooks/suite';
 import { isDesktop, isWeb } from '@trezor/env-utils';
 
-import { selectDevice, selectTorState } from 'src/reducers/suite/suiteReducer';
+import { selectTorState } from 'src/reducers/suite/suiteReducer';
 import { selectEnabledNetworks } from 'src/reducers/wallet/settingsReducer';
 import { Language } from './Language';
 import { Fiat } from './Fiat';
@@ -24,7 +24,6 @@ import { EarlyAccess } from './EarlyAccess';
 import { BitcoinAmountUnit } from './BitcoinAmountUnit';
 import { NETWORKS } from 'src/config/wallet';
 import { DesktopSuiteBanner } from './DesktopSuiteBanner';
-import { METADATA } from 'src/actions/suite/constants';
 import {
     selectIsLabelingInitPossible,
     selectSelectedProviderForLabels,

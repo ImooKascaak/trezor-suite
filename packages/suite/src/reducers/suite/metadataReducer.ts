@@ -195,7 +195,7 @@ export const selectIsLabelingAvailable = (state: MetadataRootState) => {
         device?.metadata?.[METADATA.ENCRYPTION_VERSION] &&
         !!provider &&
         device.state &&
-        !failedMigration?.[device.state]
+        !failedMigration[device.state]
     );
 };
 

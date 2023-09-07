@@ -891,7 +891,7 @@ export const init = (force?: boolean) => async (dispatch: Dispatch, getState: Ge
 
     // migration failed and suite detected a reason to init metadata automatically (change in labelable entities set)
     // but it still respects users choice not to work with metadata for this device
-    if (!force && getState().metadata.failedMigration?.[device.state]) {
+    if (!force && getState().metadata.failedMigration[device.state]) {
         return false;
     }
 
