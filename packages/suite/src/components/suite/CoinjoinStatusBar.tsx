@@ -36,6 +36,10 @@ const Container = styled.div`
     border-bottom: 1px solid ${({ theme }) => theme.STROKE_LIGHT_GREY};
     font-size: ${variables.FONT_SIZE.TINY};
     font-weight: ${variables.FONT_WEIGHT.MEDIUM};
+
+    &:hover {
+        background: ${({ theme }) => theme.BG_GREY};
+    }
 `;
 
 const StyledProgressPie = styled(ProgressPie)`
@@ -130,7 +134,7 @@ export const CoinjoinStatusBar = ({ accountKey, session, isSingle }: CoinjoinSta
         symbolParam === symbol && indexParam === index && accountTypeParam === accountType;
 
     return (
-        <Container>
+        <Container onClick={handleViewAccount}>
             <StyledProgressPie progress={sessionProgress} />
 
             <StatusText>
@@ -171,7 +175,7 @@ export const CoinjoinStatusBar = ({ accountKey, session, isSingle }: CoinjoinSta
             )}
 
             {((isOnSelectedDevice && !isOnAccountPage) || !isOnSelectedDevice) && (
-                <ViewButton variant="tertiary" onClick={handleViewAccount}>
+                <ViewButton variant="tertiary">
                     <Translation id="TR_VIEW" />
                 </ViewButton>
             )}
