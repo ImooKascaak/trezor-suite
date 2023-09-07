@@ -17,6 +17,7 @@ import { AlertRenderer } from '@suite-native/alerts';
 import { NavigationContainerWithAnalytics } from '@suite-native/navigation';
 import { AuthenticatorProvider } from '@suite-native/biometrics';
 import { MessageSystemRenderer } from '@suite-native/message-system';
+import { ScreenshotProvider } from '@suite-native/screen-overlay';
 
 import { RootStackNavigator } from './navigation/RootStackNavigator';
 import { StylesProvider } from './StylesProvider';
@@ -57,16 +58,18 @@ const AppComponent = () => {
 
     return (
         <FormatterProvider config={formattersConfig}>
-            <AuthenticatorProvider>
-                <AlertRenderer>
-                    <MessageSystemRenderer />
-                    <NotificationRenderer>
-                        <ToastRenderer>
-                            <RootStackNavigator />
-                        </ToastRenderer>
-                    </NotificationRenderer>
-                </AlertRenderer>
-            </AuthenticatorProvider>
+            <ScreenshotProvider>
+                <AuthenticatorProvider>
+                    <AlertRenderer>
+                        <MessageSystemRenderer />
+                        <NotificationRenderer>
+                            <ToastRenderer>
+                                <RootStackNavigator />
+                            </ToastRenderer>
+                        </NotificationRenderer>
+                    </AlertRenderer>
+                </AuthenticatorProvider>
+            </ScreenshotProvider>
         </FormatterProvider>
     );
 };
