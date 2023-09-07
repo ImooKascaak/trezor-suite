@@ -648,16 +648,17 @@ export const addAccountMetadata =
         const account = getState().wallet.accounts.find(a => a.key === payload.accountKey);
         const provider = selectSelectedProviderForLabels(getState());
 
-        if (!account || !provider) return { success: false, error: 'account or provider missing' };
+        if (!account || !provider)
+            return Promise.resolve({ success: false, error: 'account or provider missing' });
 
         // todo: not danger overwrite empty?
         const { fileName, aesKey } = account.metadata?.[METADATA.ENCRYPTION_VERSION] || {};
 
         if (!fileName || !aesKey) {
-            return {
+            return Promise.resolve({
                 success: false,
                 error: `filename of version ${METADATA.ENCRYPTION_VERSION} does not exist for account ${account.path}`,
-            };
+            });
         }
         const data = provider.data[fileName];
 
@@ -667,7 +668,8 @@ export const addAccountMetadata =
 
         if (payload.type === 'outputLabel') {
             if (typeof payload.value !== 'string' || payload.value.length === 0) {
-                if (!nextMetadata.outputLabels[payload.txid]) return { success: true };
+                if (!nextMetadata.outputLabels[payload.txid])
+                    return Promise.resolve({ success: false });
                 delete nextMetadata.outputLabels[payload.txid][payload.outputIndex];
                 if (Object.keys(nextMetadata.outputLabels[payload.txid]).length === 0) {
                     delete nextMetadata.outputLabels[payload.txid];
@@ -712,7 +714,7 @@ export const addAccountMetadata =
         );
 
         // we might intentionally skip saving metadata content to persistent storage.
-        if (!save) return { success: true };
+        if (!save) return Promise.resolve({ success: true });
 
         return dispatch(
             encryptAndSaveMetadata({
@@ -745,7 +747,7 @@ const encryptAndSaveMetadata =
 
         if (!providerInstance) {
             // provider should always be set here
-            return { success: false, error: 'no provider instance' };
+            return Promise.resolve({ success: false, error: 'no provider instance' });
         }
 
         const encrypted = await metadataUtils.encrypt(
